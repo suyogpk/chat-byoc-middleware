@@ -15,6 +15,11 @@ app.use((req, res, next) => {
     next();
 });
 
+// Health Check - Railway might expect this
+app.get('/', (req, res) => {
+    res.status(200).send('Chat BYOC Middleware is running!');
+});
+
 // Token Endpoint
 app.post('/1.0/token', (req, res) => {
     const { client_id, client_secret } = req.body;
@@ -40,7 +45,7 @@ app.post('/outbound/reply', (req, res) => {
 });
 
 // Add Action URL
-app.post('/', (req, res) => {
+app.post('/add', (req, res) => {
     console.log('Add Action triggered');
     res.status(200).json({ message: 'Add action completed successfully.' });
 });
@@ -55,6 +60,11 @@ app.post('/reconnect', (req, res) => {
 app.post('/remove', (req, res) => {
     console.log('Remove Action triggered');
     res.status(200).json({ message: 'Remove action completed successfully.' });
+});
+
+// Catch-all 404 Handler
+app.use((req, res) => {
+    res.status(404).json({ error: 'Endpoint not found' });
 });
 
 app.listen(PORT, () => {
