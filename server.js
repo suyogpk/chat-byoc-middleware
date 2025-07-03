@@ -15,7 +15,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// Health Check - Railway might expect this
+// Health Check
 app.get('/', (req, res) => {
     res.status(200).send('Chat BYOC Middleware is running!');
 });
@@ -35,12 +35,41 @@ app.post('/1.0/token', (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
 });
 
-// Outbound Reply Endpoint
+// Outbound Reply Endpoint (Old CXone flow)
 app.post('/outbound/reply', (req, res) => {
     console.log('Agent message received:', req.body);
 
     return res.status(200).json({
         externalMessageId: 'external-' + Date.now()
+    });
+});
+
+// New Outbound Endpoint (CXone requirement)
+app.post('/2.0/channel/:channelId/outbound', (req, res) => {
+    console.log('Outbound message received:', req.body);
+
+    const { channelId } = req.params;
+    const { thread, endUserRecipients } = req.body;
+
+    return res.status(200).json({
+        message: {
+            idOnExternalPlatform: 'outbound-' + Date.now(),
+            createdAtWithMilliseconds: new Date().toISOString(),
+            url: 'https://example.com/message/' + Date.now()
+        },
+        thread: {
+            idOnExternalPlatform: thread.idOnExternalPlatform
+        },
+        endUserIdentities: [
+            {
+                idOnExternalPlatform: endUserRecipients[0]?.idOnExternalPlatform || 'unknown',
+                firstName: 'John',
+                lastName: 'Doe',
+                nickname: '@john',
+                image: ''
+            }
+        ],
+        recipients: endUserRecipients
     });
 });
 
