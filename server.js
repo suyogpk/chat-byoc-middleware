@@ -73,6 +73,30 @@ app.post('/2.0/channel/:channelId/outbound', (req, res) => {
     });
 });
 
+// Recipient Validation Endpoint (Required for manual outbound)
+app.post('/1.0/channel/:channelId/recipients/validation', (req, res) => {
+    console.log('Recipient validation request received:', req.body);
+
+    const { endUserRecipients } = req.body;
+
+    if (!endUserRecipients || !endUserRecipients.length || !endUserRecipients[0].idOnExternalPlatform) {
+        return res.status(400).json({
+            displayErrorMessage: "Invalid recipient format",
+            errorCode: "outboundValidationFailed",
+            errors: [
+                {
+                    path: ["idOnExternalPlatform"],
+                    message: "Invalid recipient format"
+                }
+            ]
+        });
+    }
+
+    return res.status(200).json({
+        status: "valid"
+    });
+});
+
 // Add Action URL
 app.post('/add', (req, res) => {
     console.log('Add Action triggered');
