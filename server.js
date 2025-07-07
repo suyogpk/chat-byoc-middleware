@@ -1,26 +1,30 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const { v4: uuidv4 } = require('uuid');
+const path = require('path');
 const { CLIENT_ID, CLIENT_SECRET, TOKEN_EXPIRY } = require('./config');
 
 const app = express();
 app.use(bodyParser.json());
 
+// ✅ Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
+
 const PORT = process.env.PORT || 3000;
 
-// Log all incoming requests
+// ✅ Log all incoming requests
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
     console.log('Body:', req.body);
     next();
 });
 
-// Health Check
+// ✅ Health Check
 app.get('/', (req, res) => {
     res.status(200).send('Chat BYOC Middleware is running!');
 });
 
-// Token Endpoint
+// ✅ Token Endpoint
 app.post('/1.0/token', (req, res) => {
     const { client_id, client_secret } = req.body;
 
@@ -35,7 +39,7 @@ app.post('/1.0/token', (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
 });
 
-// Outbound Reply Endpoint (Old CXone flow)
+// ✅ Outbound Reply Endpoint (Old CXone flow)
 app.post('/outbound/reply', (req, res) => {
     console.log('Agent message received:', req.body);
 
@@ -44,7 +48,7 @@ app.post('/outbound/reply', (req, res) => {
     });
 });
 
-// New Outbound Endpoint (CXone requirement)
+// ✅ New Outbound Endpoint (CXone requirement)
 app.post('/2.0/channel/:channelId/outbound', (req, res) => {
     console.log('Outbound message received:', req.body);
 
@@ -73,7 +77,7 @@ app.post('/2.0/channel/:channelId/outbound', (req, res) => {
     });
 });
 
-// Recipient Validation Endpoint (Required for manual outbound)
+// ✅ Recipient Validation Endpoint (Required for manual outbound)
 app.post('/1.0/channel/:channelId/recipients/validation', (req, res) => {
     console.log('Recipient validation request received:', req.body);
 
@@ -97,29 +101,30 @@ app.post('/1.0/channel/:channelId/recipients/validation', (req, res) => {
     });
 });
 
-// Add Action URL
+// ✅ Add Action URL
 app.post('/add', (req, res) => {
     console.log('Add Action triggered');
     res.status(200).json({ message: 'Add action completed successfully.' });
 });
 
-// Reconnect Action URL
+// ✅ Reconnect Action URL
 app.post('/reconnect', (req, res) => {
     console.log('Reconnect Action triggered');
     res.status(200).json({ message: 'Reconnect action completed successfully.' });
 });
 
-// Remove Action URL
+// ✅ Remove Action URL
 app.post('/remove', (req, res) => {
     console.log('Remove Action triggered');
     res.status(200).json({ message: 'Remove action completed successfully.' });
 });
 
-// Catch-all 404 Handler
+// ✅ Catch-all 404 Handler
 app.use((req, res) => {
     res.status(404).json({ error: 'Endpoint not found' });
 });
 
+// ✅ Start the server
 app.listen(PORT, () => {
     console.log(`Chat BYOC Middleware running on port ${PORT}`);
 });
