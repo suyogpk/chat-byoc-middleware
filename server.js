@@ -1,3 +1,4 @@
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const { v4: uuidv4 } = require('uuid');
@@ -24,7 +25,7 @@ app.get('/', (req, res) => {
     res.status(200).send('Chat BYOC Middleware is running!');
 });
 
-// ✅ DFO-compliant Token endpoint
+// ✅ Token endpoint for client_credentials grant type
 app.post('/1.0/token', (req, res) => {
     const { grant_type, client_id, client_secret } = req.body;
 
