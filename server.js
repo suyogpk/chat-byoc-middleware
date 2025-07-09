@@ -6,53 +6,53 @@ const { CLIENT_ID, CLIENT_SECRET, TOKEN_EXPIRY } = require('./config');
 
 const app = express();
 app.use(bodyParser.json());
-
-// ✅ Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
 const PORT = process.env.PORT || 3000;
 
-// ✅ Log all incoming requests
-app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
-    console.log('Body:', req.body);
+// 🔐 Middleware to check for Bearer token
+function authenticate(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Unauthorized. Bearer token required.' });
+    }
     next();
-});
+}
 
-// ✅ Health Check
+// ✅ Health check
 app.get('/', (req, res) => {
     res.status(200).send('Chat BYOC Middleware is running!');
 });
 
-// ✅ Token Endpoint
+// ✅ DFO-compliant Token endpoint
 app.post('/1.0/token', (req, res) => {
-    const { client_id, client_secret } = req.body;
+    const { grant_type, client_id, client_secret } = req.body;
 
-    if (client_id === CLIENT_ID && client_secret === CLIENT_SECRET) {
-        return res.status(200).json({
-            access_token: uuidv4(),
-            token_type: "bearer",
-            expires_in: TOKEN_EXPIRY
-        });
+    if (
+        grant_type !== 'client_credentials' ||
+        client_id !== CLIENT_ID ||
+        client_secret !== CLIENT_SECRET
+    ) {
+        return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(200).json({
+        access_token: uuidv4(),
+        token_type: "bearer",
+        expires_in: TOKEN_EXPIRY
+    });
 });
 
-// ✅ Outbound Reply Endpoint (Old CXone flow)
-app.post('/outbound/reply', (req, res) => {
+// 🔐 Protected - Agent replies
+app.post('/outbound/reply', authenticate, (req, res) => {
     console.log('Agent message received:', req.body);
-
     return res.status(200).json({
         externalMessageId: 'external-' + Date.now()
     });
 });
 
-// ✅ New Outbound Endpoint (CXone requirement)
-app.post('/2.0/channel/:channelId/outbound', (req, res) => {
-    console.log('Outbound message received:', req.body);
-
-    const { channelId } = req.params;
+// 🔐 Protected - Outbound message
+app.post('/2.0/channel/:channelId/outbound', authenticate, (req, res) => {
     const { thread, endUserRecipients } = req.body;
 
     return res.status(200).json({
@@ -77,10 +77,8 @@ app.post('/2.0/channel/:channelId/outbound', (req, res) => {
     });
 });
 
-// ✅ Recipient Validation Endpoint (Required for manual outbound)
-app.post('/1.0/channel/:channelId/recipients/validation', (req, res) => {
-    console.log('Recipient validation request received:', req.body);
-
+// 🔐 Protected - Recipient validation
+app.post('/1.0/channel/:channelId/recipients/validation', authenticate, (req, res) => {
     const { endUserRecipients } = req.body;
 
     if (!endUserRecipients || !endUserRecipients.length || !endUserRecipients[0].idOnExternalPlatform) {
@@ -96,35 +94,20 @@ app.post('/1.0/channel/:channelId/recipients/validation', (req, res) => {
         });
     }
 
-    return res.status(200).json({
-        status: "valid"
-    });
+    return res.status(200).json({ status: "valid" });
 });
 
-// ✅ Add Action URL
-app.post('/add', (req, res) => {
-    console.log('Add Action triggered');
-    res.status(200).json({ message: 'Add action completed successfully.' });
-});
+// ✅ Optional admin flows
+app.post('/add', (req, res) => res.status(200).json({ message: 'Add action completed successfully.' }));
+app.post('/reconnect', (req, res) => res.status(200).json({ message: 'Reconnect action completed successfully.' }));
+app.post('/remove', (req, res) => res.status(200).json({ message: 'Remove action completed successfully.' }));
 
-// ✅ Reconnect Action URL
-app.post('/reconnect', (req, res) => {
-    console.log('Reconnect Action triggered');
-    res.status(200).json({ message: 'Reconnect action completed successfully.' });
-});
-
-// ✅ Remove Action URL
-app.post('/remove', (req, res) => {
-    console.log('Remove Action triggered');
-    res.status(200).json({ message: 'Remove action completed successfully.' });
-});
-
-// ✅ Catch-all 404 Handler
+// 404 catch-all
 app.use((req, res) => {
     res.status(404).json({ error: 'Endpoint not found' });
 });
 
-// ✅ Start the server
+// Start server
 app.listen(PORT, () => {
     console.log(`Chat BYOC Middleware running on port ${PORT}`);
 });
