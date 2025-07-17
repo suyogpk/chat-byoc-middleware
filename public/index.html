@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chatbot Typing Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    .chat-box { border: 1px solid #ccc; padding: 10px; min-height: 300px; overflow-y: auto; }
+    .message { margin: 5px 0; }
+    .bot { color: blue; }
+    .user { font-weight: bold; }
+    .typing { font-style: italic; color: gray; }
+    input[type="text"] { width: 80%; padding: 8px; }
+    button { padding: 8px; }
+  </style>
+</head>
+<body>
+  <h2>Chatbot Typing Indicator UI</h2>
+  <div class="chat-box" id="chat"></div>
+  <input type="text" id="messageInput" placeholder="Type your message here" />
+  <button onclick="sendMessage()">Send</button>
+
+  <script>
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("messageInput");
+
+    async function sendMessage() {
+      const text = input.value.trim();
+      if (!text) return;
+
+      // Show user's message
+      chat.innerHTML += `<div class='message user'>You: ${text}</div>`;
+      input.value = "";
+
+      // Show typing indicator
+      const typingEl = document.createElement('div');
+      typingEl.className = 'message typing';
+      typingEl.innerText = 'Bot is typing...';
+      chat.appendChild(typingEl);
+      chat.scrollTop = chat.scrollHeight;
+
+      // Call your middleware
+      try {
+        const res = await fetch('https://your-middleware-domain.com/2.0/channel/test-channel/outbound', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer test-token'
+          },
+          body: JSON.stringify({
+            thread: { idOnExternalPlatform: 'session-001' },
+            messageContent: { type: 'TEXT', payload: { text } },
+            endUserRecipients: [
+              { idOnExternalPlatform: 'user-123', isPrimary: true, isPrivate: false }
+            ]
+          })
+        });
+
+        const data = await res.json();
+        typingEl.remove();
+
+        chat.innerHTML += `<div class='message bot'>Bot: ${data.message?.idOnExternalPlatform?.includes('bot-msg') ? 'This is your bot reply.' : 'Error occurred.'}</div>`;
+        chat.scrollTop = chat.scrollHeight;
+      } catch (err) {
+        typingEl.remove();
+        chat.innerHTML += `<div class='message bot'>Bot failed to respond.</div>`;
+        chat.scrollTop = chat.scrollHeight;
+      }
+    }
+  </script>
+</body>
+</html>
