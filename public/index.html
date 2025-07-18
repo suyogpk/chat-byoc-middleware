@@ -48,8 +48,10 @@
         });
 
         const data = await res.json();
-        const reply = data?.message?.reply || 'Agent message received.';
-        chat.innerHTML += `<div class='message bot'>Agent: ${reply}</div>`;
+        const agentText = data?.messageContent?.payload?.text || data?.message?.reply;
+        if (agentText) {
+          chat.innerHTML += `<div class='message bot'>Agent: ${agentText}</div>`;
+        }
         chat.scrollTop = chat.scrollHeight;
       } catch (err) {
         console.error('Request failed:', err);
