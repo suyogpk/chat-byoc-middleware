@@ -9,7 +9,6 @@ const PORT = process.env.PORT || 3000;
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Simple token auth middleware
 function authenticate(req, res, next) {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -18,12 +17,10 @@ function authenticate(req, res, next) {
   next();
 }
 
-// Serve HTML UI
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ✅ Handle Add Channel Setup from CXone
 app.get('/add', (req, res) => {
   const { userId, brandId, token, apiHost, backUrl } = req.query;
 
@@ -31,14 +28,13 @@ app.get('/add', (req, res) => {
     return res.status(400).send('Missing required query parameters.');
   }
 
-  console.log('✅ /add called with:', { userId, brandId, token, apiHost, backUrl });
+  console.log('Add invoked with:', { userId, brandId, token, apiHost, backUrl });
 
-  // Optionally save these values or trigger setup here
+  // Add logic to store configuration, validate token, etc. if needed
 
   return res.redirect(backUrl);
 });
 
-// Handle outbound message (e.g., from agent or chat UI)
 app.post('/2.0/channel/:channelId/outbound', authenticate, async (req, res) => {
   const { thread, messageContent, endUserRecipients } = req.body;
   const userId = endUserRecipients?.[0]?.idOnExternalPlatform || 'unknown';
@@ -79,11 +75,11 @@ app.post('/2.0/channel/:channelId/outbound', authenticate, async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ Chatbot error:', err?.response?.data || err.message);
+    console.error('Error in chatbot logic:', err?.response?.data || err.message);
     return res.status(500).json({ error: 'Bot failed to reply.' });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(`Server running at http://localhost:${PORT}`);
 });
