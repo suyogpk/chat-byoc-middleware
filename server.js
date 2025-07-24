@@ -1,101 +1,96 @@
 const express = require('express');
+const axios = require('axios');
 const bodyParser = require('body-parser');
-const path = require('path');
-const { CLIENT_ID, CLIENT_SECRET, TOKEN_EXPIRY } = require('./config');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
-// Middleware: Authenticate Bearer token from CXone
-function authenticate(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Unauthorized. Bearer token required.' });
-  }
-  next();
-}
+app.post('/2.0/channel/:channelId/outbound', async (req, res) => {
+    const channelId = req.params.channelId;
+    const bearerHeader = req.headers['authorization'];
 
-// ✅ Token endpoint - called by CXone DFO
-app.post('/1.0/token', (req, res) => {
-  const { client_id, client_secret, grant_type } = req.body;
-
-  if (grant_type !== 'client_credentials') {
-    return res.status(400).json({ error: 'Invalid grant_type' });
-  }
-
-  if (client_id !== CLIENT_ID || client_secret !== CLIENT_SECRET) {
-    return res.status(401).json({ error: 'Invalid client credentials' });
-  }
-
-  const token = Buffer.from(`${Date.now()}`).toString('base64');
-  res.json({
-    access_token: token,
-    token_type: 'bearer',
-    expires_in: TOKEN_EXPIRY
-  });
-});
-
-// ✅ Outbound endpoint - called by CXone to send a message to your channel
-app.post('/2.0/channel/:channelId/outbound', authenticate, async (req, res) => {
-  try {
-    const {
-      brand,
-      thread,
-      messageContent,
-      endUserRecipients,
-      replyToMessage,
-      isReplyToSpecificMessage,
-      attachments,
-      forward
-    } = req.body;
-
-    const primaryRecipient = endUserRecipients?.[0];
-    const now = new Date().toISOString();
-
-    if (!primaryRecipient || !thread?.idOnExternalPlatform || !messageContent?.payload?.text) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!bearerHeader || !bearerHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Missing or invalid Bearer token in Authorization header' });
     }
 
-    // 🛠️ This is where you'd forward the message to your own channel if needed
-    console.log('📤 Message from agent to customer:', messageContent.payload.text);
+    const cxoneToken = bearerHeader.split(' ')[1];
 
-    // ✅ Send expected response back to CXone
-    return res.status(200).json({
-      message: {
-        idOnExternalPlatform: 'msg-' + Date.now(),
-        createdAtWithMilliseconds: now,
-        url: `https://your-channel.example.com/messages/${Date.now()}`
-      },
-      thread: {
-        idOnExternalPlatform: thread.idOnExternalPlatform
-      },
-      endUserIdentities: [
-        {
-          idOnExternalPlatform: primaryRecipient.idOnExternalPlatform,
-          firstName: 'Jane',
-          lastName: 'Bot',
-          nickname: '@janebot',
-          image: ''
-        }
-      ],
-      recipients: endUserRecipients
-    });
+    const {
+        thread,
+        messageContent,
+        brand,
+        endUserRecipients,
+        authorEndUserIdentity
+    } = req.body;
 
-  } catch (err) {
-    console.error('❌ Outbound error:', err);
-    return res.status(500).json({ error: 'Unexpected server error' });
-  }
+    try {
+        const idOnExternalPlatform = `msg-${Date.now()}`;
+        const createdAtWithMilliseconds = new Date().toISOString();
+
+        const cxonePayload = {
+            idOnExternalPlatform,
+            thread: {
+                idOnExternalPlatform: thread?.idOnExternalPlatform || `thread-${Date.now()}`
+            },
+            messageContent,
+            createdAtWithMilliseconds,
+            direction: "outbound",
+            authorEndUserIdentity: {
+                idOnExternalPlatform: authorEndUserIdentity?.idOnExternalPlatform || "unknown-author"
+            },
+            recipients: (endUserRecipients || []).map(user => ({
+                idOnExternalPlatform: user.idOnExternalPlatform,
+                name: user.name,
+                isPrimary: user.isPrimary,
+                isPrivate: user.isPrivate
+            }))
+        };
+
+        const cxoneResponse = await axios.post(
+            `https://api-de-na1.dev.niceincontact.com/dfo/3.0/channels/${channelId}/messages`,
+            cxonePayload,
+            {
+                headers: {
+                    Authorization: `Bearer ${cxoneToken}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        // Respond to DFO with expected structure
+        const responsePayload = {
+            message: {
+                idOnExternalPlatform,
+                createdAtWithMilliseconds,
+                url: `https://your-channel.example.com/messages/${idOnExternalPlatform}`
+            },
+            thread: {
+                idOnExternalPlatform: thread?.idOnExternalPlatform
+            },
+            endUserIdentities: [
+                {
+                    idOnExternalPlatform: authorEndUserIdentity?.idOnExternalPlatform || "unknown-author",
+                    firstName: authorEndUserIdentity?.firstName || "John",
+                    lastName: authorEndUserIdentity?.lastName || "Doe",
+                    nickname: authorEndUserIdentity?.nickname || "@john",
+                    image: authorEndUserIdentity?.image || ""
+                }
+            ],
+            recipients: endUserRecipients || []
+        };
+
+        res.status(200).json(responsePayload);
+    } catch (error) {
+        console.error('Error calling CXone API:', error.response?.data || error.message);
+        res.status(500).json({
+            error: 'Failed to forward message to CXone',
+            details: error.response?.data || error.message
+        });
+    }
 });
 
-// Optional home route (can be removed in production)
-app.get('/', (req, res) => {
-  res.send('CXone BYOC Middleware is running.');
-});
-
-// Start the server
-app.listen(PORT, () => {
-  console.log(`🚀 Middleware server running at http://localhost:${PORT}`);
+app.listen(port, () => {
+    console.log(`Middleware server is running on port ${port}`);
 });
