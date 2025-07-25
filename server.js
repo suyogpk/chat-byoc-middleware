@@ -48,30 +48,23 @@ app.post('/2.0/channel/:channelId/outbound', (req, res) => {
 
   const response = {
    
-    "idOnExternalPlatform": "e9cb3db8-e10b-47d5-bm73-9566ee0f9909",
     "thread": {
         "idOnExternalPlatform": "22368683-3794-4ae0-acce-8561ebe0473b"
     },
-    "messageContent": {
+       "messageContent": {
         "type": "TEXT",
         "payload": {
-            "text": "NICE CX one empower"
+            "text": "abcd Suyog."
         }
     },
-    "createdAtWithMilliseconds": "2025-07-25T20:05:57.000+00:00",
-    "direction": "outbound",
-    "authorEndUserIdentity": {
-        "idOnExternalPlatform": "11f05180-b9dc-e290-a5b5-0242ac110002"
-    },
-    "recipients": [
+    "attachments": [
+           ],
+    "endUserRecipients": [
         {
             "idOnExternalPlatform": "26a80dbd-354c-49bd-8b30-6d5045cd92ba",
-            "name": "Swapnil Youtuber",
-            "isPrimary": true,
-            "isPrivate": false
+            "name": "Swapnil Youtuber"
         }
     ]
-
   };
 
   res.status(200).json(response);
