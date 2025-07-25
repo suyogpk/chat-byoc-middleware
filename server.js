@@ -1,79 +1,68 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const { v4: uuidv4 } = require('uuid');
+const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
 
+app.use(cors());
 app.use(bodyParser.json());
 
-// 🔐 CXone credentials for /1.0/token
-const VALID_CLIENT_ID = 'PU2RJE5MYKF3AXFP662MB6V5IQ3TEZDHGU4XIG4IV24EADPYMJWQ====';
-const VALID_CLIENT_SECRET = 'VWGQWFQ33JLAXQE7PJ22XQCTIYMYX7GOBJAYVM6QJGPUFMI5XMVQ====';
-const MOCKED_ACCESS_TOKEN = 'mocked-access-token-123456';
-
-// 🔐 Token endpoint
+// CXone Token Endpoint - Auth
 app.post('/1.0/token', (req, res) => {
   const { grant_type, client_id, client_secret } = req.body;
 
+  // Validate credentials (replace with actual secrets in production)
   if (
     grant_type === 'client_credentials' &&
-    client_id === VALID_CLIENT_ID &&
-    client_secret === VALID_CLIENT_SECRET
+    client_id === 'RKUZE6BP5EC4CME7SOHP2FKLZX6HIQR4QJDWCZM257LBLAE4S42Q====' &&
+    client_secret === '22D55ODDKZDJNUCGSERFD67MNHLDXCC5RVBUF3GJMRPKVNSSGHDQ===='
   ) {
     return res.status(200).json({
-      access_token: MOCKED_ACCESS_TOKEN
+      access_token: uuidv4(),
+      token_type: 'bearer',
+      expires_in: 3600
     });
   }
 
-  return res.status(401).json({ error: 'Invalid client credentials' });
-});
-
-// ✅ Outbound endpoint – just validates token and responds to confirm integration
-app.post('/2.0/channel/:channelId/outbound', (req, res) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Missing or invalid Authorization header' });
-  }
-
-  const token = authHeader.split(' ')[1];
-
-  if (token !== MOCKED_ACCESS_TOKEN) {
-    return res.status(403).json({ error: 'Invalid or expired token' });
-  }
-
-  const outboundPayload = req.body;
-  console.log('✅ Outbound message received from CXone:', outboundPayload);
-
-  // Simulate successful delivery back to CXone
-  const messageId = 'msg-' + Date.now();
-
-  return res.status(200).json({
-    message: {
-      idOnExternalPlatform: messageId,
-      createdAtWithMilliseconds: new Date().toISOString(),
-      url: `https://your-channel.example.com/messages/${messageId}`
-    },
-    thread: {
-      idOnExternalPlatform: outboundPayload.thread?.idOnExternalPlatform || 'unknown-thread-id'
-    },
-    endUserIdentities: outboundPayload.endUserRecipients?.map(r => ({
-      idOnExternalPlatform: r.idOnExternalPlatform,
-      firstName: 'Jane',
-      lastName: 'Bot',
-      nickname: '@janebot',
-      image: ''
-    })) || [],
-    recipients: outboundPayload.endUserRecipients || []
+  return res.status(401).json({
+    error: 'Invalid client credentials'
   });
 });
 
-// 🔁 Health check
-app.get('/', (req, res) => {
-  res.send('BYOC middleware is running');
+// Middleware Auth Validator
+const authenticate = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // In real use: validate the token properly
+  const token = authHeader.split(' ')[1];
+  if (!token || token.length < 10) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+
+  next();
+};
+
+// Outbound Endpoint (used by CXone Mpower)
+app.post('/2.0/channel/:channelId/outbound', authenticate, (req, res) => {
+  const payload = req.body;
+
+  console.log('Received outbound payload from CXone:', JSON.stringify(payload, null, 2));
+
+  const responsePayload = {
+    messageId: `msg-${Date.now()}`, // Or use uuidv4()
+    timestamp: new Date().toISOString(),
+    status: 'DELIVERED'
+  };
+
+  console.log('Responding to CXone with:', responsePayload);
+  return res.status(200).json(responsePayload);
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Middleware server listening on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`BYOC Middleware running on port ${port}`);
 });
