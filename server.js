@@ -1,18 +1,17 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const cors = require('cors');
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-app.use(cors());
 app.use(bodyParser.json());
 
+// 🔐 CXone credentials for /1.0/token
 const VALID_CLIENT_ID = 'RKUZE6BP5EC4CME7SOHP2FKLZX6HIQR4QJDWCZM257LBLAE4S42Q====';
 const VALID_CLIENT_SECRET = '22D55ODDKZDJNUCGSERFD67MNHLDXCC5RVBUF3GJMRPKVNSSGHDQ====';
-const ISSUED_TOKEN = 'mocked-access-token-123456'; // this is what CXone should use as Bearer
+const MOCKED_ACCESS_TOKEN = 'mocked-access-token-123456';
 
-// Endpoint: /1.0/token
+// 🔐 Token endpoint
 app.post('/1.0/token', (req, res) => {
   const { grant_type, client_id, client_secret } = req.body;
 
@@ -22,53 +21,59 @@ app.post('/1.0/token', (req, res) => {
     client_secret === VALID_CLIENT_SECRET
   ) {
     return res.status(200).json({
-      access_token: ISSUED_TOKEN,
+      access_token: MOCKED_ACCESS_TOKEN
     });
   }
 
   return res.status(401).json({ error: 'Invalid client credentials' });
 });
 
-// Endpoint: /2.0/channel/:channelId/outbound
+// ✅ Outbound endpoint – just validates token and responds to confirm integration
 app.post('/2.0/channel/:channelId/outbound', (req, res) => {
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || authHeader !== `Bearer ${ISSUED_TOKEN}`) {
-    return res.status(401).json({ error: 'Invalid or missing Bearer token' });
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or invalid Authorization header' });
   }
 
-  const { brand, thread, messageContent, endUserRecipients, authorEndUserIdentity } = req.body;
+  const token = authHeader.split(' ')[1];
 
-  // basic validation
-  if (!thread?.idOnExternalPlatform || !messageContent?.payload?.text) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  if (token !== MOCKED_ACCESS_TOKEN) {
+    return res.status(403).json({ error: 'Invalid or expired token' });
   }
 
-  const messageId = `msg-${Date.now()}`;
-  const now = new Date().toISOString();
+  const outboundPayload = req.body;
+  console.log('✅ Outbound message received from CXone:', outboundPayload);
+
+  // Simulate successful delivery back to CXone
+  const messageId = 'msg-' + Date.now();
 
   return res.status(200).json({
     message: {
       idOnExternalPlatform: messageId,
-      createdAtWithMilliseconds: now,
-      url: `https://your-channel.example.com/messages/${messageId}`,
+      createdAtWithMilliseconds: new Date().toISOString(),
+      url: `https://your-channel.example.com/messages/${messageId}`
     },
     thread: {
-      idOnExternalPlatform: thread.idOnExternalPlatform,
+      idOnExternalPlatform: outboundPayload.thread?.idOnExternalPlatform || 'unknown-thread-id'
     },
-    endUserIdentities: [
-      {
-        idOnExternalPlatform: authorEndUserIdentity?.idOnExternalPlatform || 'default-id',
-        firstName: authorEndUserIdentity?.firstName || 'Jane',
-        lastName: authorEndUserIdentity?.lastName || 'Bot',
-        nickname: authorEndUserIdentity?.nickname || '@janebot',
-        image: authorEndUserIdentity?.image || '',
-      },
-    ],
-    recipients: endUserRecipients || [],
+    endUserIdentities: outboundPayload.endUserRecipients?.map(r => ({
+      idOnExternalPlatform: r.idOnExternalPlatform,
+      firstName: 'Jane',
+      lastName: 'Bot',
+      nickname: '@janebot',
+      image: ''
+    })) || [],
+    recipients: outboundPayload.endUserRecipients || []
   });
 });
 
-app.listen(port, () => {
-  console.log(`Middleware server running on port ${port}`);
+// 🔁 Health check
+app.get('/', (req, res) => {
+  res.send('BYOC middleware is running');
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`🚀 Middleware server listening on port ${PORT}`);
 });
