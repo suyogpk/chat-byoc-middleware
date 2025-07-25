@@ -4,15 +4,15 @@ const bodyParser = require('body-parser');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Middleware to parse JSON
 app.use(bodyParser.json());
 
-// 🔐 Dummy Auth for /1.0/token
+// 🔐 Valid credentials
 const VALID_CLIENT_ID = 'PU2RJE5MYKF3AXFP662MB6V5IQ3TEZDHGU4XIG4IV24EADPYMJWQ====';
 const VALID_CLIENT_SECRET = 'VWGQWFQ33JLAXQE7PJ22XQCTIYMYX7GOBJAYVM6QJGPUFMI5XMVQ====';
 const MOCKED_ACCESS_TOKEN = 'mocked-access-token-123456';
 
-// 🔐 Token endpoint
+// 🔐 Token Endpoint
 app.post('/1.0/token', (req, res) => {
   const { grant_type, client_id, client_secret } = req.body;
 
@@ -21,17 +21,16 @@ app.post('/1.0/token', (req, res) => {
     client_id === VALID_CLIENT_ID &&
     client_secret === VALID_CLIENT_SECRET
   ) {
-    return res.status(200).json({
-      access_token: MOCKED_ACCESS_TOKEN
-    });
+    return res.status(200).json({ access_token: MOCKED_ACCESS_TOKEN });
   }
 
   return res.status(401).json({ error: 'Invalid client credentials' });
 });
 
-// ✅ Outbound endpoint – responds with required CXone structure
+// 📤 Outbound Endpoint (Dynamic 201-style response)
 app.post('/2.0/channel/:channelId/outbound', (req, res) => {
   const authHeader = req.headers.authorization;
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Missing or invalid Authorization header' });
   }
@@ -41,67 +40,108 @@ app.post('/2.0/channel/:channelId/outbound', (req, res) => {
     return res.status(403).json({ error: 'Invalid or expired token' });
   }
 
-  const outboundPayload = req.body;
-  console.log('📥 Outbound payload from CXone:', outboundPayload);
-
-  const now = new Date().toISOString();
-  const messageId = 'msg-' + Date.now();
-  const threadId = outboundPayload.thread?.id || 'middleware-thread-' + Date.now();
-  const cxThreadId = outboundPayload.thread?.idOnExternalPlatform || 'cx-thread-missing';
+  const payload = req.body;
   const channelId = req.params.channelId;
-  const recipients = outboundPayload.endUserRecipients || outboundPayload.recipients || [];
+  const messageId = `msg-${Date.now()}`;
+  const timestamp = new Date().toISOString();
 
-  const response = {
+  // Extract from request (fallbacks are added)
+  const threadId = payload.thread?.idOnExternalPlatform || 'fallback-thread';
+  const text = payload.messageContent?.payload?.text || 'no-text';
+  const recipients = payload.recipients || [];
+
+  // Prepare recipient identities
+  const endUserIdentities = recipients.map((r, i) => ({
+    idOnExternalPlatform: r.idOnExternalPlatform || `user-${i}`,
+    firstName: r.name?.split(' ')[0] || 'First',
+    lastName: r.name?.split(' ')[1] || '',
+    nickname: '@bot',
+    image: ''
+  }));
+
+  // Send dynamic 201-style response
+  return res.status(200).json({
     consumerContact: {
-      id: "contact-" + Date.now(),
+      id: Date.now().toString(),
       threadId: threadId,
-      threadIdOnExternalPlatform: cxThreadId,
+      threadIdOnExternalPlatform: threadId,
       channelId: channelId,
-      interactionId: "interaction-" + Date.now(),
+      interactionId: `int-${Date.now()}`,
       consumerContactStorageId: threadId,
-      contactId: "contact-id-" + Date.now(),
-      customerContactId: "customer-contact-" + Date.now(),
-      status: "pending",
-      statusUpdatedAt: now,
-      statusUpdatedAtWithMilliseconds: now,
+      contactId: `c-${Date.now()}`,
+      customerContactId: `cust-${Date.now()}`,
+      status: 'pending',
+      statusUpdatedAt: timestamp,
+      statusUpdatedAtWithMilliseconds: timestamp,
+      tags: [],
+      routingQueueId: `queue-${Date.now()}`,
+      routingQueuePriority: 0,
+      inboxAssignee: null,
+      inboxAssigneeLastAssignedAt: timestamp,
+      inboxAssigneeUser: null,
+      ownerAssigneeUser: {
+        id: 1,
+        incontactId: 'owner-id',
+        agentId: 100,
+        emailAddress: 'bot@example.com',
+        loginUsername: 'bot',
+        firstName: 'Bot',
+        surname: 'User',
+        nickname: '@bot',
+        imageUrl: '',
+        publicImageUrl: '',
+        isBotUser: true,
+        isSurveyUser: false
+      },
+      ownedBySystem: 'Digital',
       endUserRecipients: recipients,
       recipients: recipients,
-      authorEndUserIdentity: {
-        idOnExternalPlatform: recipients[0]?.idOnExternalPlatform || "user-unknown",
-        firstName: "SimUser",
-        lastName: "",
-        nickname: "sim",
-        image: ""
-      },
-      direction: "inbound",
-      createdAt: now,
-      preview: outboundPayload.messageContent?.payload?.text || "Message Preview",
+      detailUrl: `https://your-domain.com/case/${threadId}`,
+      authorEndUserIdentity: endUserIdentities[0] || null,
+      direction: 'inbound',
+      createdAt: timestamp,
+      preview: text,
       isOutboundAllowed: true,
+      contactNumber: Date.now().toString(),
+      pointOfContactId: 1338,
+      divisionNumber: 1,
+      acceleration: 1,
+      routingAttribute: 0
     },
     message: {
-      id: messageId,
+      id: `m-${Date.now()}`,
       idOnExternalPlatform: messageId,
       postId: threadId,
       threadId: threadId,
-      threadIdOnExternalPlatform: cxThreadId,
-      messageContent: outboundPayload.messageContent,
-      createdAt: now,
-      createdAtWithMilliseconds: now,
-      direction: "outbound",
-      recipients: recipients
+      threadIdOnExternalPlatform: threadId,
+      messageContent: {
+        text: text,
+        type: payload.messageContent?.type || 'TEXT',
+        payload: payload.messageContent?.payload || {},
+        fallbackText: 'Unsupported message content',
+        isAutoTranslated: false,
+        parameters: {},
+        postback: null
+      },
+      createdAt: timestamp,
+      createdAtWithMilliseconds: timestamp,
+      isMadeByUser: true,
+      direction: 'outbound',
+      recipients: recipients,
+      sentiment: 'neutral',
+      isRead: true,
+      readAt: timestamp,
+      contactNumber: Date.now().toString()
     }
-  };
-
-  console.log('✅ Responding with:', JSON.stringify(response, null, 2));
-  return res.status(200).json(response);
+  });
 });
 
-// 🔁 Health check
+// Health check
 app.get('/', (req, res) => {
-  res.send('🟢 Middleware is up and running!');
+  res.send('✅ BYOC middleware is running');
 });
 
-// 🚀 Start server
+// Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Middleware listening on port ${PORT}`);
+  console.log(`🚀 Middleware server listening on port ${PORT}`);
 });
