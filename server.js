@@ -48,7 +48,7 @@ app.post('/2.0/channel/:channelId/outbound', (req, res) => {
 
   const response = {
    
-    "idOnExternalPlatform": "e9cb3db8-e10b-47d5-bm73-9566ee0f5909",
+    "idOnExternalPlatform": "e9cb3db8-e10b-47d5-bm73-9566ee0f9909",
     "thread": {
         "idOnExternalPlatform": "22368683-3794-4ae0-acce-8561ebe0473b"
     },
