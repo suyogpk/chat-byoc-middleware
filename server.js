@@ -47,55 +47,31 @@ app.post('/2.0/channel/:channelId/outbound', (req, res) => {
   console.log('✅ Outbound received:', JSON.stringify(payload, null, 2));
 
   const response = {
-    consumerContact: {
-      id: "1749798712389111",
-      threadId,
-      threadIdOnExternalPlatform,
-      channelId,
-      interactionId: "19465cc0-c493-4e2f-b051-bd1d1b94d63a",
-      customerContactId: "16a72821-8bf1-4398-966c-9512bdef7f67",
-      status: "pending",
-      statusUpdatedAt: new Date().toISOString(),
-      statusUpdatedAtWithMilliseconds: new Date().toISOString(),
-      detailUrl: "https://example.com/chat/detail",
-      ownerAssigneeUser: {
-        id: 116618,
-        incontactId: "11f05180-b9dc-e290-a5b5-0242ac110002",
-        agentId: 1062,
-        emailAddress: "suyog.kawley@nice.com",
-        loginUsername: "suyog.kawley@11eec1b2-d135-af80-88ae-0242ac110002.do34.com",
-        firstName: "suyog",
-        surname: "kawley",
-        imageUrl: "https://assets-de-na1.dev.niceincontact.com/platform/static/public/img/user/s.png",
-        publicImageUrl: "https://assets-de-na1.dev.niceincontact.com/platform/static/public/img/user/s.png",
-        isBotUser: true,
-        isSurveyUser: false
-      },
-      endUserRecipients: payload.endUserRecipients || [],
-      recipients: payload.endUserRecipients || [],
-      createdAt: new Date().toISOString(),
-      isOutboundAllowed: true
+   
+    "idOnExternalPlatform": "e9cb3db8-e10b-47d5-bm73-9566ee0f5909",
+    "thread": {
+        "idOnExternalPlatform": "22368683-3794-4ae0-acce-8561ebe0473b"
     },
-    message: {
-      id: messageId,
-      idOnExternalPlatform: "e9cb3db8-e10b-47d5-bm73-9566ee0f5909",
-      postId: threadId,
-      threadId,
-      threadIdOnExternalPlatform,
-      messageContent: payload.messageContent || {
-        type: "TEXT",
-        payload: { text: "Default message" }
-      },
-      createdAt: new Date().toISOString(),
-      createdAtWithMilliseconds: new Date().toISOString(),
-      isMadeByUser: true,
-      direction: "outbound",
-      isRead: true,
-      recipients: payload.endUserRecipients || [],
-      authorRecipients: [],
-      channel: { id: channelId },
-      isReplyAllowed: false
-    }
+    "messageContent": {
+        "type": "TEXT",
+        "payload": {
+            "text": "NICE CX one empower"
+        }
+    },
+    "createdAtWithMilliseconds": "2025-07-25T20:05:57.000+00:00",
+    "direction": "outbound",
+    "authorEndUserIdentity": {
+        "idOnExternalPlatform": "11f05180-b9dc-e290-a5b5-0242ac110002"
+    },
+    "recipients": [
+        {
+            "idOnExternalPlatform": "26a80dbd-354c-49bd-8b30-6d5045cd92ba",
+            "name": "Swapnil Youtuber",
+            "isPrimary": true,
+            "isPrivate": false
+        }
+    ]
+
   };
 
   res.status(200).json(response);
