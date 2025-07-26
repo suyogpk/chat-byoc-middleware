@@ -27,7 +27,7 @@ app.post('/1.0/token', (req, res) => {
   return res.status(401).json({ error: 'Invalid client credentials' });
 });
 
-// 📤 Outbound Endpoint (Dynamic 201-style response)
+// utbound Endpoint (Dynamic 201-style response)
 app.post('/2.0/channel/:channelId/outbound', (req, res) => {
   const authHeader = req.headers.authorization;
 
@@ -56,7 +56,7 @@ app.post('/2.0/channel/:channelId/outbound', (req, res) => {
     firstName: r.name?.split(' ')[0] || 'First',
     lastName: r.name?.split(' ')[1] || '',
     nickname: '@bot',
-    image: ''
+    image: null
   }));
 
   // Send dynamic 201-style response
@@ -88,7 +88,7 @@ app.post('/2.0/channel/:channelId/outbound', (req, res) => {
         firstName: 'Bot',
         surname: 'User',
         nickname: '@bot',
-        imageUrl: '',
+        imageUrl: null,
         publicImageUrl: '',
         isBotUser: true,
         isSurveyUser: false
@@ -138,10 +138,10 @@ app.post('/2.0/channel/:channelId/outbound', (req, res) => {
 
 // Health check
 app.get('/', (req, res) => {
-  res.send('✅ BYOC middleware is running');
+  res.send('BYOC middleware is running');
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Middleware server listening on port ${PORT}`);
+  console.log(`Middleware server listening on port ${PORT}`);
 });
