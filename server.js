@@ -89,7 +89,7 @@ app.post('/2.0/channel/:channelId/outbound', (req, res) => {
         surname: 'User',
         nickname: '@bot',
         imageUrl: null,
-        publicImageUrl: '',
+        publicImageUrl: null,
         isBotUser: true,
         isSurveyUser: false
       },
