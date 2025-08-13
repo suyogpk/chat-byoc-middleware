@@ -14,7 +14,7 @@ app.post("/2.0/channel/:channelId/outbound", (req, res) => {
       url: `https://your-channel.example.com/messages/${dynamicId}`
     },
     thread: {
-      idOnExternalPlatform: "22368683-3794-4ae0-acce-8561ebe0473b"
+      idOnExternalPlatform: "bcea2def-0835-47b6-a2b9-be625e0dc788"
     },
     endUserIdentities: [
       {
