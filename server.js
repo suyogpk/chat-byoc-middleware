@@ -1,20 +1,86 @@
 const express = require("express");
+const crypto = require("crypto");
+const { CLIENT_ID, CLIENT_SECRET, TOKEN_EXPIRY } = require("./config");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-app.post("/2.0/channel/:channelId/outbound", (req, res) => {
+// In-memory token store
+const issuedTokens = new Map();
+
+/**
+ * POST /1.0/token
+ * Request:
+ * {
+ *   "grant_type": "client_credentials",
+ *   "client_id": "xxx",
+ *   "client_secret": "xxx",
+ *   "expires_in": 3600
+ * }
+ * Response:
+ * {
+ *   "access_token": "randomtoken..."
+ * }
+ */
+app.post("/1.0/token", (req, res) => {
+  const { grant_type, client_id, client_secret, expires_in } = req.body;
+
+  // Validate grant type
+  if (grant_type !== "client_credentials") {
+    return res.status(400).json({ error: "Unsupported grant_type" });
+  }
+
+  // Validate credentials
+  if (client_id !== CLIENT_ID || client_secret !== CLIENT_SECRET) {
+    return res.status(401).json({ error: "Invalid client credentials" });
+  }
+
+  // Generate token
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiryTime = Date.now() + ((expires_in || TOKEN_EXPIRY) * 1000);
+
+  issuedTokens.set(token, { expiry: expiryTime });
+
+  // Respond with access token
+  res.json({ access_token: token });
+});
+
+// Middleware to validate Bearer token
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Missing or invalid Authorization header" });
+  }
+
+  const token = authHeader.substring(7);
+  const tokenData = issuedTokens.get(token);
+
+  if (!tokenData) {
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+
+  if (Date.now() > tokenData.expiry) {
+    issuedTokens.delete(token);
+    return res.status(401).json({ error: "Token expired" });
+  }
+
+  next();
+}
+
+// Outbound endpoint
+app.post("/2.0/channel/:channelId/outbound", authenticateToken, (req, res) => {
   const dynamicId = `msg-${Date.now()}`;
 
   const response = {
     message: {
       idOnExternalPlatform: dynamicId,
-      createdAtWithMilliseconds: "2025-07-25T20:05:57.000+00:00",
+      createdAtWithMilliseconds: new Date().toISOString(),
       url: `https://your-channel.example.com/messages/${dynamicId}`
     },
     thread: {
-      idOnExternalPlatform: "bcea2def-0835-47b6-a2b9-be625e0dc788"
+      idOnExternalPlatform: req.body.thread?.idOnExternalPlatform || "default-thread-id"
     },
     endUserIdentities: [
       {
@@ -56,8 +122,9 @@ app.post("/2.0/channel/:channelId/outbound", (req, res) => {
   res.status(200).json(response);
 });
 
+// Health check
 app.get("/", (req, res) => {
-  res.send("CXone BYOC Middleware is running");
+  res.send("CXone BYOC Middleware is running with Authorization");
 });
 
 app.listen(PORT, () => {
