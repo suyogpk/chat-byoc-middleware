@@ -121,12 +121,33 @@ app.post("/2.0/channel/:channelId/outbound", authenticateToken, (req, res) => {
   console.log("Responding to outbound request with:", response);
   res.status(200).json(response);
 });
+// ===== Sender Actions Endpoint =====
+app.post(
+  "/1.0/channel/:channelId/thread/:threadIdOnExternalPlatform/sender-action",
+  authenticateToken,
+  (req, res) => {
+    const { channelId, threadIdOnExternalPlatform } = req.params;
+    const { brand, senderAction, authorUser } = req.body;
 
-// Health check
+    console.log("Sender action received:");
+    console.log("Channel ID:", channelId);
+    console.log("Thread ID:", threadIdOnExternalPlatform);
+    console.log("Brand:", brand);
+    console.log("Sender Action:", senderAction);
+    console.log("Author User:", authorUser);
+
+    // In a real integration, send the senderAction to the external platform here
+    res.status(204).send();
+  }
+);
+
+// ===== Health Check =====
 app.get("/", (req, res) => {
-  res.send("CXone BYOC Middleware is running with Authorization");
+  res.send("BYOC Middleware running");
 });
 
+// ===== Start Server =====
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
