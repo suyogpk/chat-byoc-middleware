@@ -85,23 +85,23 @@ app.post("/2.0/channel/:channelId/outbound", authenticateToken, (req, res) => {
     endUserIdentities: [
       {
         idOnExternalPlatform: "26a80dbd-354c-49bd-8b30-6d5045cd92ba",
-        firstName: "Jane",
-        lastName: "Bot",
-        nickname: "@janebot",
+        firstName: "suyogQA",
+        lastName: "Kawley",
+        nickname: "@suyogk",
         image: null
       },
       {
         idOnExternalPlatform: "11f05180-b9dc-e290-a5b5-0242ac110002",
-        firstName: "Jane",
-        lastName: "Bot",
-        nickname: "@janebot",
+        firstName: "SuyogQA",
+        lastName: "Kawley",
+        nickname: "@suyogk",
         image: null
       }
     ],
     recipients: [
       {
         idOnExternalPlatform: "26a80dbd-354c-49bd-8b30-6d5045cd92ba",
-        name: "Swapnil Youtuber",
+        name: "Suyog NiCEer",
         isPrimary: true,
         isPrivate: false,
         anonymizedAt: null,
@@ -109,7 +109,7 @@ app.post("/2.0/channel/:channelId/outbound", authenticateToken, (req, res) => {
       },
       {
         idOnExternalPlatform: "11f05180-b9dc-e290-a5b5-0242ac110002",
-        name: "",
+        name: "SaurabhJain",
         isPrimary: true,
         isPrivate: false,
         anonymizedAt: null,
@@ -147,7 +147,6 @@ app.get("/", (req, res) => {
 });
 
 // ===== Start Server =====
-const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
