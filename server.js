@@ -44,7 +44,7 @@ app.post("/1.0/token", (req, res) => {
   issuedTokens.set(token, { expiry: expiryTime });
 
   // Respond with access token
-  res.json({ access_token: token });
+  res.json({ access_token: token, expires_in: (expires_in || TOKEN_EXPIRY) });
 });
 
 // Middleware to validate Bearer token
