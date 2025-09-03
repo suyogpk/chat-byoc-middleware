@@ -102,7 +102,7 @@ app.post(
 );
 
 // ======================
-// 🔹 Health Check
+// 🔹 Health Check + UI
 // ======================
 app.get("/", (req, res) => {
   res.send(`
