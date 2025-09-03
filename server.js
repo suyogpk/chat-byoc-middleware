@@ -1,115 +1,113 @@
-const express = require("express");
-const crypto = require("crypto");
-const http = require("http");
-const { Server } = require("socket.io");
-const path = require("path");
-const { CLIENT_ID, CLIENT_SECRET, TOKEN_EXPIRY } = require("./config");
+// server.js
+import express from "express";
+import http from "http";
+import { Server } from "socket.io";
+import bodyParser from "body-parser";
+import AWS from "aws-sdk";
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-const PORT = process.env.PORT || 3000;
+app.use(bodyParser.json());
 
-app.use(express.json());
+// Serve static files from public/
+app.use(express.static("public"));
 
-// In-memory token store
-const issuedTokens = new Map();
-
-// ===== Token Endpoint =====
-app.post("/1.0/token", (req, res) => {
-  const { grant_type, client_id, client_secret, expires_in } = req.body;
-
-  if (grant_type !== "client_credentials") {
-    return res.status(400).json({ error: "Unsupported grant_type" });
-  }
-
-  if (client_id !== CLIENT_ID || client_secret !== CLIENT_SECRET) {
-    return res.status(401).json({ error: "Invalid client credentials" });
-  }
-
-  const token = crypto.randomBytes(32).toString("hex");
-  const expiryTime = Date.now() + ((expires_in || TOKEN_EXPIRY) * 1000);
-  issuedTokens.set(token, { expiry: expiryTime });
-
-  res.json({ access_token: token, expires_in: (expires_in || TOKEN_EXPIRY) });
+// Default route → load index.html
+app.get("/", (req, res) => {
+  res.sendFile(process.cwd() + "/public/index.html");
 });
 
-// ===== Token Middleware =====
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Missing or invalid Authorization header" });
+// Manual test endpoint (POST /sender-action)
+app.post("/sender-action", (req, res) => {
+  const action = req.body.senderAction?.action;
+
+  if (!action) {
+    return res.status(400).json({ error: "Missing senderAction.action" });
   }
 
-  const token = authHeader.substring(7);
-  const tokenData = issuedTokens.get(token);
+  console.log("🔔 Sender action received:", action);
 
-  if (!tokenData) {
-    return res.status(401).json({ error: "Invalid or expired token" });
+  // Broadcast to UI
+  io.emit("sender-action", req.body);
+
+  res.json({ status: "ok" });
+});
+
+// -----------------------------
+// 🔹 SQS Listener for senderActionJob
+// -----------------------------
+const sqs = new AWS.SQS({
+  region: "us-west-2",
+  apiVersion: "2012-11-05",
+});
+
+// replace with your actual queue URL from logs
+const queueUrl =
+  "https://sqs-fips.us-west-2.amazonaws.com/265671366761/to-de-platform-sender-actions";
+
+// Poll SQS for senderAction jobs
+async function pollSQS() {
+  try {
+    const data = await sqs
+      .receiveMessage({
+        QueueUrl: queueUrl,
+        MaxNumberOfMessages: 5,
+        WaitTimeSeconds: 10,
+      })
+      .promise();
+
+    if (data.Messages && data.Messages.length > 0) {
+      for (const msg of data.Messages) {
+        console.log("📩 SQS Message:", msg.Body);
+
+        try {
+          const parsed = JSON.parse(msg.Body);
+
+          // Check if this is a senderActionJob
+          if (parsed?.event?.senderAction) {
+            console.log("✅ Broadcasting sender action:", parsed.event.senderAction);
+            io.emit("sender-action", { senderAction: parsed.event.senderAction });
+          }
+        } catch (err) {
+          console.error("❌ Error parsing SQS message:", err);
+        }
+
+        // Delete processed message
+        await sqs
+          .deleteMessage({
+            QueueUrl: queueUrl,
+            ReceiptHandle: msg.ReceiptHandle,
+          })
+          .promise();
+      }
+    }
+  } catch (err) {
+    console.error("❌ Error polling SQS:", err);
   }
 
-  if (Date.now() > tokenData.expiry) {
-    issuedTokens.delete(token);
-    return res.status(401).json({ error: "Token expired" });
-  }
-
-  next();
+  // keep polling
+  setTimeout(pollSQS, 5000);
 }
 
-// ===== Outbound Endpoint =====
-app.post("/2.0/channel/:channelId/outbound", authenticateToken, (req, res) => {
-  const dynamicId = `msg-${Date.now()}`;
+// Start polling SQS
+pollSQS();
 
-  const response = {
-    message: {
-      idOnExternalPlatform: dynamicId,
-      createdAtWithMilliseconds: new Date().toISOString(),
-      url: `https://your-channel.example.com/messages/${dynamicId}`
-    },
-    thread: {
-      idOnExternalPlatform: req.body.thread?.idOnExternalPlatform || "default-thread-id"
-    },
-    endUserIdentities: [],
-    recipients: []
-  };
-
-  console.log("Responding to outbound request with:", response);
-  res.status(200).json(response);
+// -----------------------------
+// Socket.io connection
+// -----------------------------
+io.on("connection", (socket) => {
+  console.log("🟢 Client connected");
+  socket.on("disconnect", () => {
+    console.log("🔴 Client disconnected");
+  });
 });
 
-// ===== Sender Actions Endpoint =====
-app.post(
-  "/1.0/channel/:channelId/thread/:threadIdOnExternalPlatform/sender-action",
-  authenticateToken,
-  (req, res) => {
-    const { channelId, threadIdOnExternalPlatform } = req.params;
-    const { brand, senderAction, authorUser } = req.body;
-
-    console.log("Sender action received:", senderAction);
-
-    // Broadcast sender action to UI via Socket.IO
-    io.emit("sender-action", {
-      channelId,
-      threadIdOnExternalPlatform,
-      brand,
-      senderAction,
-      authorUser,
-    });
-
-    res.status(204).send();
-  }
-);
-
-// ===== Serve UI =====
-app.use("/ui", express.static(path.join(__dirname, "public")));
-
-// ===== Health Check =====
-app.get("/", (req, res) => {
-  res.send("BYOC Middleware running");
-});
-
-// ===== Start Server =====
+// -----------------------------
+// Start server
+// -----------------------------
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

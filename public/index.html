@@ -1,26 +1,99 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Sender Action UI</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Typing Indicator</title>
   <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f7f9fb;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .chat-box {
+      width: 350px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .typing-indicator {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .dots {
+      display: flex;
+      gap: 3px;
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #666;
+      animation: blink 1.4s infinite both;
+    }
+
+    .dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes blink {
+      0%, 80%, 100% {
+        transform: scale(0.6);
+        opacity: 0.4;
+      }
+      40% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h2>Sender Action UI</h2>
-  <div id="indicator">No typing...</div>
+  <div class="chat-box">
+    <h3>Agent Chat</h3>
+
+    <!-- Typing indicator -->
+    <div id="typingIndicator" class="typing-indicator">
+      <span>Agent is typing</span>
+      <div class="dots">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+    </div>
+  </div>
 
   <script>
     const socket = io();
 
-    socket.on("sender-action", (data) => {
-      const indicator = document.getElementById("indicator");
+    const typingIndicator = document.getElementById("typingIndicator");
 
-      if (data.senderAction.action === "isTypingOn") {
-        indicator.innerText = "Agent is typing...";
-      } else if (data.senderAction.action === "isTypingOff") {
-        indicator.innerText = "Agent stopped typing.";
-      } else {
-        indicator.innerText = "Last Action: " + data.senderAction.action;
+    socket.on("sender-action", (data) => {
+      console.log("Sender action received:", data);
+
+      if (data?.senderAction?.action === "isTypingOn") {
+        typingIndicator.style.display = "flex";
+      } else if (data?.senderAction?.action === "isTypingOff") {
+        typingIndicator.style.display = "none";
       }
     });
   </script>
