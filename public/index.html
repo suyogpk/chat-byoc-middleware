@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sender Action UI</title>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <h2>Sender Action UI</h2>
+  <div id="indicator">No typing...</div>
+
+  <script>
+    const socket = io();
+
+    socket.on("sender-action", (data) => {
+      const indicator = document.getElementById("indicator");
+
+      if (data.senderAction.action === "isTypingOn") {
+        indicator.innerText = "Agent is typing...";
+      } else if (data.senderAction.action === "isTypingOff") {
+        indicator.innerText = "Agent stopped typing.";
+      } else {
+        indicator.innerText = "Last Action: " + data.senderAction.action;
+      }
+    });
+  </script>
+</body>
+</html>
