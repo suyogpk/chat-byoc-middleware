@@ -1,21 +1,23 @@
-const express = require("express");
-const crypto = require("crypto");
-const http = require("http");
-const { Server } = require("socket.io");
-const { CLIENT_ID, CLIENT_SECRET, TOKEN_EXPIRY } = require("./config");
+// server.js
+import express from "express";
+import http from "http";
+import { Server } from "socket.io";
+import crypto from "crypto";
+import bodyParser from "body-parser";
+import { CLIENT_ID, CLIENT_SECRET, TOKEN_EXPIRY } from "./config.js";
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-const PORT = process.env.PORT || 3000;
+app.use(bodyParser.json());
 
-app.use(express.json());
-
-// In-memory token store
+// ======================
+// 🔹 In-memory token store
+// ======================
 const issuedTokens = new Map();
 
-// ====== Token Endpoint ======
+// ===== Generate Token =====
 app.post("/1.0/token", (req, res) => {
   const { grant_type, client_id, client_secret, expires_in } = req.body;
 
@@ -27,13 +29,14 @@ app.post("/1.0/token", (req, res) => {
   }
 
   const token = crypto.randomBytes(32).toString("hex");
-  const expiryTime = Date.now() + ((expires_in || TOKEN_EXPIRY) * 1000);
+  const expiryTime = Date.now() + (expires_in || TOKEN_EXPIRY) * 1000;
+
   issuedTokens.set(token, { expiry: expiryTime });
 
-  res.json({ access_token: token, expires_in: (expires_in || TOKEN_EXPIRY) });
+  res.json({ access_token: token, expires_in: expires_in || TOKEN_EXPIRY });
 });
 
-// ====== Auth Middleware ======
+// ===== Middleware: Bearer token validation =====
 function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
   if (!authHeader?.startsWith("Bearer ")) {
@@ -44,6 +47,7 @@ function authenticateToken(req, res, next) {
   const tokenData = issuedTokens.get(token);
 
   if (!tokenData) return res.status(401).json({ error: "Invalid or expired token" });
+
   if (Date.now() > tokenData.expiry) {
     issuedTokens.delete(token);
     return res.status(401).json({ error: "Token expired" });
@@ -51,80 +55,90 @@ function authenticateToken(req, res, next) {
   next();
 }
 
-// ====== Outbound Endpoint ======
+// ======================
+// 🔹 Outbound Message Endpoint
+// ======================
 app.post("/2.0/channel/:channelId/outbound", authenticateToken, (req, res) => {
   const dynamicId = `msg-${Date.now()}`;
+
   const response = {
     message: {
       idOnExternalPlatform: dynamicId,
       createdAtWithMilliseconds: new Date().toISOString(),
-      url: `https://your-channel.example.com/messages/${dynamicId}`
+      url: `https://your-channel.example.com/messages/${dynamicId}`,
     },
     thread: {
-      idOnExternalPlatform: req.body.thread?.idOnExternalPlatform || "default-thread-id"
+      idOnExternalPlatform: req.body.thread?.idOnExternalPlatform || "default-thread-id",
     },
-    recipients: req.body.endUserRecipients || []
+    recipients: req.body.endUserRecipients || [],
   };
-  console.log("📨 Outbound response:", response);
+
+  console.log("📩 Outbound message received, responding with:", response);
   res.status(200).json(response);
 });
 
-// ====== Sender Actions Endpoint ======
-app.post("/1.0/channel/:channelId/thread/:threadIdOnExternalPlatform/sender-action",
+// ======================
+// 🔹 Sender Actions Endpoint (Typing events)
+// ======================
+app.post(
+  "/1.0/channel/:channelId/thread/:threadIdOnExternalPlatform/sender-action",
   authenticateToken,
   (req, res) => {
     const { channelId, threadIdOnExternalPlatform } = req.params;
     const { brand, senderAction, authorUser } = req.body;
 
-    console.log("✍️ Sender action received:", { channelId, threadIdOnExternalPlatform, senderAction });
+    console.log("✍️ Sender action received:");
+    console.log("Channel ID:", channelId);
+    console.log("Thread ID:", threadIdOnExternalPlatform);
+    console.log("Brand:", brand?.friendlyName);
+    console.log("Sender Action:", senderAction);
+    console.log("Author User:", authorUser?.firstName);
 
-    // Broadcast to UI
-    io.emit("sender-action", { channelId, threadIdOnExternalPlatform, senderAction, authorUser });
+    // 🔹 Broadcast to UI
+    io.emit("sender-action", { senderAction, authorUser });
+
     res.status(204).send();
   }
 );
 
-// ====== Health Check ======
+// ======================
+// 🔹 Health Check
+// ======================
 app.get("/", (req, res) => {
-  res.send(`✅ BYOC Middleware running<br>Check <a href="/ui">/ui</a> for typing indicator`);
-});
-
-// ====== Simple UI for Typing Indicator ======
-app.get("/ui", (req, res) => {
   res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Typing Indicator</title>
-      <script src="/socket.io/socket.io.js"></script>
-    </head>
-    <body>
-      <h3>Typing Indicator Test</h3>
-      <div id="indicator">Waiting...</div>
-      <script>
-        const socket = io();
-        socket.on("sender-action", (data) => {
-          if (data.senderAction?.action === "isTypingOn") {
-            document.getElementById("indicator").innerText = "💬 Agent is typing...";
-          } else if (data.senderAction?.action === "isTypingOff") {
-            document.getElementById("indicator").innerText = "✅ Agent stopped typing";
-          } else {
-            document.getElementById("indicator").innerText = JSON.stringify(data);
-          }
-        });
-      </script>
-    </body>
-    </html>
+    <h2>BYOC Middleware running 🚀</h2>
+    <p>Check typing indicator below:</p>
+    <div id="typing-status" style="font-weight:bold;color:green;"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+      socket.on("sender-action", (data) => {
+        const statusBox = document.getElementById("typing-status");
+        if (data.senderAction?.action === "isTypingOn") {
+          statusBox.innerText = data.authorUser?.firstName + " is typing...";
+        } else if (data.senderAction?.action === "isTypingOff") {
+          statusBox.innerText = "";
+        }
+      });
+    </script>
   `);
 });
 
-// ====== Socket.IO ======
+// ======================
+// 🔹 Socket.io connection
+// ======================
 io.on("connection", (socket) => {
-  console.log("🟢 UI connected");
-  socket.on("disconnect", () => console.log("🔴 UI disconnected"));
+  console.log("🟢 Client connected to UI");
+  socket.on("disconnect", () => {
+    console.log("🔴 Client disconnected");
+  });
 });
 
-// ====== Start ======
+// ======================
+// 🔹 Start server
+// ======================
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
